@@ -154,6 +154,19 @@ class BookingWorkflowTest {
     }
 
     @Test
+    void recurringCancelFromMiddleReleasesCurrentAndFutureOccurrencesOnly() {
+        List<Booking> series = workflow.submit(
+                BookingRequest.recurring("C-200", "m-1", MON_9AM, MON_10AM, 4, 6)).getBooked();
+
+        assertTrue(workflow.cancel(series.get(1).getId(), false));
+
+        assertFalse(store.findBooking(series.get(0).getId()).isCancelled());
+        assertTrue(store.findBooking(series.get(1).getId()).isCancelled());
+        assertTrue(store.findBooking(series.get(2).getId()).isCancelled());
+        assertTrue(store.findBooking(series.get(3).getId()).isCancelled());
+    }
+
+    @Test
     void blockedCancelNeedsTheAdminFlag() {
         long id = workflow.submit(BookingRequest.blocked("W-101", MON_9AM, MON_11AM))
                 .getBooking().getId();

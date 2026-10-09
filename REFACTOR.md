@@ -13,20 +13,28 @@ Keep it short and specific. Point at methods, call sites, and test names.
 
 ### The pin (write this section before you direct the refactor)
 
-**The pin.** File and test name, plus one sentence naming the method and the
-observable result it pins. Not "recurring bookings work". Green against the
-shipped code, and you did not edit or delete an existing test method to get
-there.
+**The pin.** `src/test/java/edu/cmu/cs214/scheduling/workflow/BookingWorkflowTest.java`,
+`recurringCancelFromMiddleReleasesCurrentAndFutureOccurrencesOnly`: `cancel`
+on a recurring occurrence cancels that occurrence and later occurrences in the
+same series, while leaving earlier occurrences active. It is green against the
+shipped code, and I added a new test method rather than editing or deleting an
+existing one.
 
-**Why that one, and does a shipped test already cover it?** Of everything
-`BookingWorkflow` does, why is this the behavior worth a test? If something
-shipped comes close, say what your pin adds. If nothing does, say how you
-checked.
+**Why that one, and does a shipped test already cover it?** This is worth a
+pin because the recurring cancel branch has a non-obvious policy boundary: it
+does not just cancel one occurrence, and it also does not cancel the whole
+series. The shipped `recurringCancelReleasesTheOccurrence` test comes close,
+but it cancels the last occurrence, so it cannot show that future occurrences
+are also cancelled or that earlier occurrences stay active. I checked the rest
+of `BookingWorkflowTest` and no other shipped test asserts that middle-of-series
+cascade.
 
-**What a regeneration would do differently here.** Suppose someone
-threw this class away and regenerated it from a one-line description of what a
-booking workflow does. Name the decision that would be made a second time, and
-say which way it would probably go.
+**What a regeneration would do differently here.** Regenerating
+`BookingWorkflow` from a one-line booking workflow description would have to
+decide the recurring-cancel policy again. It would probably choose the simpler
+"cancel only the selected occurrence" behavior unless the prompt explicitly
+said cancellation should release the selected occurrence and every future
+occurrence in the series.
 
 ### The directive
 
