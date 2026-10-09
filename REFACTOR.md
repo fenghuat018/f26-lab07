@@ -38,34 +38,64 @@ occurrence in the series.
 
 ### The directive
 
-**The refactor and the exact directive.** Name the refactor (one from the menu
-in the handout) and paste the directive you gave the agent, including the scope
-you set, meaning which files and packages were in bounds, which were not, and
-one line on why the boundary sits where it does.
+**The refactor and the exact directive.** Refactor chosen: extract a class per
+booking type. Directive: "In Milestone 1, refactor `BookingWorkflow` by
+extracting a class per booking type: regular, recurring, and blocked. Scope is
+`src/main/java/edu/cmu/cs214/scheduling/workflow/` only; keep
+`domain/`, `pricing/`, `notify/`, `reporting/`, `pom.xml`, and tests out of
+bounds except for the already-committed characterization pin. The refactor must
+remove the repeated booking-type conditional from all four public workflow
+methods (`submit`, `cancel`, `priceOf`, and `describe`) without changing
+observable behavior, notification text, rejection messages, prices, or store
+writes." The boundary sits at `workflow/` because this is where the repeated
+type policy lives; the other packages are collaborators and data contracts.
 
 ### The result
 
-**The diff and the suite.** How you are showing the diff to the TA (a commit,
-`git diff`, a branch), and the totals line (the shipped count plus your pin,
-all green).
+**The diff and the suite.** I am showing the TA two commits: first
+`63ab380 Add recurring cancel characterization pin`, then the refactor commit
+that extracts the booking-type workflow classes. The suite totals line after
+the refactor is `Tests run: 36, Failures: 0, Errors: 0, Skipped: 0`: the shipped
+35 tests plus my pin, all green.
 
-**What did NOT change: behavior and files.** The observable behavior you
-checked is still the same, including anything that surprised you while reading.
-Which files outside the scope are untouched, and how you verified that rather
-than assumed it. If the agent reached outside the directive, say where and what
-you did about it.
+**What did NOT change: behavior and files.** The checked behavior stayed the
+same for submit accept/reject messages, overlap handling, recurring skip
+counts, cancellation notifications, prices, descriptions, and the new pin for
+middle-of-series recurring cancellation. The surprising behavior I preserved is
+that recurring cancellation from the middle cancels that occurrence and future
+occurrences while leaving earlier ones active. Files outside the directive did
+not change: `git diff --name-only HEAD` before committing showed only
+`workflow/` files and `REFACTOR.md`, and the tests stayed unchanged after the
+pin commit. The agent did not reach into `domain/`, `pricing/`, `notify/`, or
+`reporting/`.
 
-**One thing the agent changed that you had to look at twice.** Something you
-checked line by line before accepting. If there was nothing, say how carefully
-you read the diff.
+**One thing the agent changed that you had to look at twice.** I checked the
+recurring path line by line because it had two easy-to-break details: submit
+uses the original inclusive overlap comparison for skipped occurrences, and
+cancel keeps the original "selected occurrence and future occurrences" loop.
+Those details are now in `RecurringBookingWorkflow`.
 
 ### The closing explanation
 
-**Refactor or regenerate?** Argue whether regenerating `BookingWorkflow` from scratch
-would have been the better call, using the lecture's four questions (test
-coverage, code age, spec quality, and reach). Be concrete about this codebase.
+**Refactor or regenerate?** Refactor was the better call. Test coverage is
+good enough to guard this move: the shipped tests cover regular, recurring, and
+blocked submit/cancel/price/describe behavior, and my pin adds the missing
+middle-of-series recurring cancellation rule. Code age argues against throwing
+it away: the class has accumulated specific decisions, like recurring skip
+messages, admin-only block cancellation, and the recurring cancellation
+cascade. Spec quality is not high enough to regenerate from scratch; the
+README describes capabilities, but it does not state details like exact
+notification text, rejection strings, or whether recurring cancellation should
+cancel one occurrence or the future tail of the series. Reach also argues for a
+refactor: this class is the front door for writes, prices, descriptions, and
+notifications, and other packages depend on its exact behavior. Regeneration
+would be more likely to remake hidden decisions than preserve them.
 
-**What would flip your answer.** A condition about the artifact, not a feeling.
+**What would flip your answer.** I would choose regeneration if there were a
+complete executable contract for `BookingWorkflow`: tests or specs covering all
+messages, notification side effects, conflict boundaries, pricing calls, and
+recurring cancellation policy, plus no external client depending on the current
+quirks.
 
 ---
 
