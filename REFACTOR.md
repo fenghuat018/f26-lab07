@@ -105,38 +105,86 @@ Read `notify/`. It works and the outbox tests pass.
 
 ### The patterns present
 
-List every design pattern you can name in that package. For each one, the class
-or classes that carry it.
+- **Factory / factory method:** `NotifierFactory#createStrategy()` creates the
+  notification renderer instead of callers constructing it directly. In plain
+  terms, the caller asks a factory for "something that can render a
+  notification" instead of knowing the concrete class name.
+- **Strategy:** `NotificationStrategy` is the strategy interface, and
+  `EmailNotificationStrategy` is the concrete strategy used to render a
+  `NotificationMessage` into text. In plain terms, the formatting algorithm is
+  put behind an interface so the system could swap "email formatting" for
+  another rendering rule.
+- **Observer / publisher-subscriber:** `NotificationHub` is the publisher,
+  `NotificationSubscriber` is the subscriber interface, and `OutboxSubscriber`
+  is the concrete subscriber registered by the hub. In plain terms, the hub
+  publishes one rendered message and every subscriber gets notified without the
+  hub needing to know what each subscriber does with it.
 
 ### The problem each one solves
 
-For each pattern you listed, what would have to be true about the requirements
-for that pattern to be the right call? One sentence each, not in terms of
-"flexibility".
+- **Factory / factory method:** This is the right call if notification renderer
+  construction has a real decision to make, such as choosing email, SMS, or
+  Slack from configuration or environment.
+- **Strategy:** This is the right call if the system must support multiple
+  rendering algorithms for the same `NotificationMessage`, such as email text,
+  SMS text, and webhook JSON.
+- **Observer / publisher-subscriber:** This is the right call if one published
+  notification must fan out to multiple independent actions, such as writing to
+  the outbox, sending email, recording metrics, and notifying an audit log.
 
 ### Which of those problems exist here
 
-For each pattern, does the problem it solves exist in this codebase? Point at
-the code that settles it.
+- **Factory / factory method:** No. `NotifierFactory#createStrategy()` always
+  returns `new EmailNotificationStrategy()`, and `NotificationHub` immediately
+  calls that factory in its constructor, so there is no runtime construction
+  choice in this codebase.
+- **Strategy:** No. There is only one implementation,
+  `EmailNotificationStrategy`, and no caller passes in or selects another
+  `NotificationStrategy`; the tested output is one fixed email-like string.
+- **Observer / publisher-subscriber:** Mostly no. `NotificationHub` has a
+  `subscribe` method and loops over subscribers in `publish`, but its
+  constructor always registers exactly one `OutboxSubscriber`, and
+  `NotificationHubTest#hubDeliversToItsOneSubscriber` asserts that count is 1.
 
 ### The simpler structure
 
-**Your proposal.** What replaces `notify/`. Sketch the classes and the one
-method that matters.
+**Your proposal.** Replace the pattern stack with `NotificationHub`,
+`NotificationMessage`, and `Outbox`. `NotificationHub#publish` can render the
+one supported format directly and append it to the outbox:
+`"To: " + message.recipient() + " | Subject: " + message.subject() + " | "
++ message.body()`. That removes `NotifierFactory`, `NotificationStrategy`,
+`EmailNotificationStrategy`, `NotificationSubscriber`, and
+`OutboxSubscriber`.
 
-**What stays the same.** The tested behavior it must still produce, named
-precisely enough that a reader can check it against the shipped tests.
+**What stays the same.** `NotificationHubTest#publishedMessageLandsInTheOutboxFullyRendered`
+must still produce exactly `To: ada@rooms.example.edu | Subject: Booking confirmed
+| Room Willow Room from 2026-10-05T09:00 to 2026-10-05T10:00`.
+`NotificationHubTest#aConfirmationFromTheWorkflowReachesTheOutbox` must still
+show a workflow confirmation landing in the outbox with that same rendered
+format.
 
-**What you would keep, if anything.** If you would keep one interface, say
-which and why. "None of it" is a fine answer if you can defend it.
+**What you would keep, if anything.** I would keep no interface today.
+`NotificationMessage` is still useful as the value passed by workflow code, and
+`Outbox` is still useful as the tested storage object, but neither needs an
+interface while there is only one rendering format and one destination.
 
 ### What would bring each layer back
 
-For at least two of the layers you would remove, what requirement, if it
-arrived next sprint, would make that layer the right structure? Be specific
-about the requirement, not about the pattern.
+- **Factory / factory method:** Bring it back if notification setup starts
+  choosing a renderer from configuration, such as `NOTIFY_CHANNEL=email|sms|slack`,
+  or if renderer construction needs credentials and environment-specific setup.
+- **Strategy:** Bring it back if the product must render the same
+  `NotificationMessage` into multiple formats, such as email headers, SMS text,
+  and webhook JSON, while keeping workflow code independent of those formats.
+- **Observer / publisher-subscriber:** Bring it back if publishing one booking
+  event must trigger several independent destinations, such as outbox storage,
+  an audit log, metrics, and a real mail sender.
 
-**Misuse or anti-pattern?** Say which this is and why the distinction matters.
+**Misuse or anti-pattern?** This is pattern misuse, not an anti-pattern. The
+patterns are recognizable and implemented in ordinary ways, but the current
+requirements are too small for them; calling it an anti-pattern would imply the
+patterns are harmful by nature, when the real issue is using them before the
+code has the problems they solve.
 
 ---
 
@@ -144,7 +192,10 @@ about the requirement, not about the pattern.
 
 Read `pricing/`. Not coded, one sentence.
 
-**The pattern.** Which one fits `PriceCalculator`, and the problem that makes
-it fit. Name the problem.
+**The pattern.** Chain of Responsibility fits `PriceCalculator`: the problem is
+ordered pricing rules, where each rule adjusts the running price before handing
+it to the next rule.
 
-**Would you apply it today?** Yes or no, one line, with the reason.
+**Would you apply it today?** No; today there are only four fixed rules in one
+published order, so a rule chain would add more structure than the requirements
+need.
